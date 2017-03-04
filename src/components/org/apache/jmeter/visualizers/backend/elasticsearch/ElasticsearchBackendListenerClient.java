@@ -59,8 +59,6 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
     private static final String TEXT = "text=\"";
 
     // Name of the measurement
-    private static final String DEFAULT_MEASUREMENT = "jmeter";
-
     private static final String TAG_TRANSACTION = ",transaction=";
 
     private static final String TAG_STATUT = ",statut=";
@@ -88,7 +86,6 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
     private static final String CUMULATED_METRICS = "all";
     private static final long SEND_INTERVAL = JMeterUtils.getPropDefault("backend_influxdb.send_interval", 5);
     private static final int MAX_POOL_SIZE = 1;
-    private static final String SEPARATOR = ";"; //$NON-NLS-1$
     private static final Object LOCK = new Object();
 
     private static final String DEFAULT_ELASTICSEARCH_HOST = "localhost";
@@ -100,8 +97,6 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
     private int  elasticsearchPort;
     private String samplersRegex = "";
     private Pattern samplersToFilter;
-    private Map<String, Float> okPercentiles;
-    private Map<String, Float> koPercentiles;
     private Map<String, Float> allPercentiles;
     private String testTitle;
     private String testTags;
@@ -319,7 +314,7 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
 
     /**
      * Add Annotation at start or end of the run ( usefull with Grafana )
-     * Grafana will let you send HTML in the “Text” such as a link to the release notes
+     * Grafana will let you send HTML in the 窶弋ext窶� such as a link to the release notes
      * Tags are separated by spaces in grafana
      * Tags is put as InfluxdbTag for better query performance on it
      * Never double or single quotes in influxdb except for string field

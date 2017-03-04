@@ -31,7 +31,7 @@ import java.util.concurrent.TimeoutException;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
@@ -60,7 +60,7 @@ class HttpMetricsSender extends AbstracElasticsearchMetricsSender {
 
     private List<MetricTuple> metrics = new ArrayList<>();
 
-    private HttpPost httpRequest;
+    private HttpPut httpRequest;
 
     private CloseableHttpAsyncClient httpClient;
 
@@ -105,7 +105,14 @@ class HttpMetricsSender extends AbstracElasticsearchMetricsSender {
                 .disableCookieManagement()
                 .disableConnectionState()
                 .build();
-        url = new URL(elasticsearchHost);
+        StringBuilder sbUrl = new StringBuilder(255);
+        sbUrl.append("http://");
+        sbUrl.append(elasticsearchHost);
+        sbUrl.append(":");
+        sbUrl.append(elasticseachPort);
+        sbUrl.append("/");
+        
+        url = new URL(sbUrl.toString());
         httpRequest = createRequest(url);
         httpClient.start();
     }
@@ -115,14 +122,14 @@ class HttpMetricsSender extends AbstracElasticsearchMetricsSender {
      * @return 
      * @throws URISyntaxException 
      */
-    private HttpPost createRequest(URL url) throws URISyntaxException {
+    private HttpPut createRequest(URL url) throws URISyntaxException {
         RequestConfig defaultRequestConfig = RequestConfig.custom()
                 .setConnectTimeout(JMeterUtils.getPropDefault("backend_influxdb.connection_timeout", 1000))
                 .setSocketTimeout(JMeterUtils.getPropDefault("backend_influxdb.socket_timeout", 3000))
                 .setConnectionRequestTimeout(JMeterUtils.getPropDefault("backend_influxdb.connection_request_timeout", 100))
                 .build();
         
-        HttpPost httpRequest = new HttpPost(url.toURI());
+        HttpPut httpRequest = new HttpPut(url.toURI());
         httpRequest.setConfig(defaultRequestConfig);
         log.debug("Created InfluxDBMetricsSender with url: {}", url);
         return httpRequest;
