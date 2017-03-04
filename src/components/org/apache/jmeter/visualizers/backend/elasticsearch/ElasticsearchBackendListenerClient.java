@@ -55,35 +55,6 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
     // Name of the measurement
     private static final String EVENTS_FOR_ANNOTATION = "events";
     
-    private static final String TAGS = ",tags=";
-    private static final String TEXT = "text=\"";
-
-    // Name of the measurement
-    private static final String TAG_TRANSACTION = ",transaction=";
-
-    private static final String TAG_STATUT = ",statut=";
-    private static final String TAG_APPLICATION = ",application=";
-
-    private static final String METRIC_COUNT = "count=";
-    private static final String METRIC_COUNT_ERREUR = "countError=";
-    private static final String METRIC_MIN = "min=";
-    private static final String METRIC_MAX = "max=";
-    private static final String METRIC_AVG = "avg=";
-
-    private static final String METRIC_HIT = "hit=";
-    private static final String METRIC_PCT = "pct";
-
-    private static final String METRIC_MAXAT = "maxAT=";
-    private static final String METRIC_MINAT = "minAT=";
-    private static final String METRIC_MEANAT = "meanAT=";
-    private static final String METRIC_STARTEDT = "startedT=";
-    private static final String METRIC_ENDEDT = "endedT=";
-
-    private static final String TAG_OK = "ok";
-    private static final String TAG_KO = "ko";
-    private static final String TAG_ALL = "all";
-
-    private static final String CUMULATED_METRICS = "all";
     private static final long SEND_INTERVAL = JMeterUtils.getPropDefault("backend_influxdb.send_interval", 5);
     private static final int MAX_POOL_SIZE = 1;
     private static final Object LOCK = new Object();
@@ -98,10 +69,7 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
     private String samplersRegex = "";
     private Pattern samplersToFilter;
     private Map<String, Float> allPercentiles;
-    private String testTitle;
-    private String testTags;
     // Name of the application tested
-    private String application = "";
 
     private ElasticsearchMetricsSender elasticsearchMetricsManager;
 
@@ -125,27 +93,14 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
         synchronized (LOCK) {
             for (Map.Entry<String, SamplerMetric> entry : getMetricsInfluxdbPerSampler().entrySet()) {
                 SamplerMetric metric = entry.getValue();
-                if (entry.getKey().equals(CUMULATED_METRICS)) {
-                    addCumulatedMetrics(metric);
-                } else {
-                    addMetrics(AbstracElasticsearchMetricsSender.tagToStringValue(entry.getKey()), metric);
-                }
                 // We are computing on interval basis so cleanup
                 metric.resetForTimeInterval();
             }
         }
 
-        UserMetric userMetrics = getUserMetrics();
         // For JMETER context
         StringBuilder tag = new StringBuilder(60);
-        tag.append(TAG_APPLICATION).append(application);
-        tag.append(TAG_TRANSACTION).append("internal");
         StringBuilder field = new StringBuilder(80);
-        field.append(METRIC_MINAT).append(userMetrics.getMinActiveThreads()).append(",");
-        field.append(METRIC_MAXAT).append(userMetrics.getMaxActiveThreads()).append(",");
-        field.append(METRIC_MEANAT).append(userMetrics.getMeanActiveThreads()).append(",");
-        field.append(METRIC_STARTEDT).append(userMetrics.getStartedThreads()).append(",");
-        field.append(METRIC_ENDEDT).append(userMetrics.getFinishedThreads());
 
         elasticsearchMetricsManager.addMetric(measurement, tag.toString(), field.toString());
 
@@ -159,38 +114,13 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
      *            {@link SamplerMetric}
      */
     private void addMetrics(String transaction, SamplerMetric metric) {
-        // FOR ALL STATUS
-        addMetric(transaction, metric, metric.getTotal(), false, TAG_ALL, metric.getAllMean(), metric.getAllMinTime(),
-                metric.getAllMaxTime(), allPercentiles.values());
-        // FOR OK STATUS
-        addMetric(transaction, metric, metric.getSuccesses(), false, TAG_OK, metric.getOkMean(), metric.getOkMinTime(),
-                metric.getOkMaxTime(), Collections.<Float> emptySet());
-        // FOR KO STATUS
-        addMetric(transaction, metric, metric.getFailures(), true, TAG_KO, metric.getKoMean(), metric.getKoMinTime(),
-                metric.getKoMaxTime(), Collections.<Float> emptySet());
     }
 
     private void addMetric(String transaction, SamplerMetric metric, int count, boolean includeResponseCode,
             String statut, double mean, double minTime, double maxTime, Collection<Float> pcts) {
         if (count > 0) {
             StringBuilder tag = new StringBuilder(70);
-            tag.append(TAG_APPLICATION).append(application);
-            tag.append(TAG_STATUT).append(statut);
-            tag.append(TAG_TRANSACTION).append(transaction);
             StringBuilder field = new StringBuilder(80);
-            field.append(METRIC_COUNT).append(count);
-            if (!Double.isNaN(mean)) {
-                field.append(",").append(METRIC_AVG).append(mean);
-            }
-            if (!Double.isNaN(minTime)) {
-                field.append(",").append(METRIC_MIN).append(minTime);
-            }
-            if (!Double.isNaN(maxTime)) {
-                field.append(",").append(METRIC_MAX).append(maxTime);
-            }
-            for (Float pct : pcts) {
-                field.append(",").append(METRIC_PCT).append(pct).append("=").append(metric.getAllPercentile(pct));
-            }
             elasticsearchMetricsManager.addMetric(measurement, tag.toString(), field.toString());
         }
     }
@@ -201,28 +131,6 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
             StringBuilder tag = new StringBuilder(70);
             StringBuilder field = new StringBuilder(100);
             Collection<Float> pcts = allPercentiles.values();
-            tag.append(TAG_APPLICATION).append(application);
-            tag.append(TAG_TRANSACTION).append(CUMULATED_METRICS);
-            tag.append(TAG_STATUT).append(CUMULATED_METRICS);
-
-            field.append(METRIC_COUNT).append(total);
-            field.append(",").append(METRIC_COUNT_ERREUR).append(metric.getFailures());
-
-            if (!Double.isNaN(metric.getOkMean())) {
-                field.append(",").append(METRIC_AVG).append(Double.toString(metric.getOkMean()));
-            }
-            if (!Double.isNaN(metric.getOkMinTime())) {
-                field.append(",").append(METRIC_MIN).append(Double.toString(metric.getOkMinTime()));
-            }
-            if (!Double.isNaN(metric.getOkMaxTime())) {
-                field.append(",").append(METRIC_MAX).append(Double.toString(metric.getOkMaxTime()));
-            }
-
-            field.append(",").append(METRIC_HIT).append(metric.getHits());
-            for (Float pct : pcts) {
-                field.append(",").append(METRIC_PCT).append(pct).append("=").append(Double.toString(metric.getAllPercentile(pct)));
-            }
-            field.append(",").append(METRIC_HIT).append(metric.getHits());
             elasticsearchMetricsManager.addMetric(measurement, tag.toString(), field.toString());
         }
     }
@@ -253,9 +161,7 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
                     SamplerMetric samplerMetric = getSamplerMetricInfluxdb(sampleResult.getSampleLabel());
                     samplerMetric.add(sampleResult);
                 }
-                SamplerMetric cumulatedMetrics = getSamplerMetricInfluxdb(CUMULATED_METRICS);
-                cumulatedMetrics.add(sampleResult);
-            }
+           }
         }
     }
 
@@ -264,6 +170,7 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
         String elasticsearchMetricsSender = context.getParameter("elasticsearchMetricsSender");
         elasticsearchHost = context.getParameter("elasticsearchHost");
         elasticsearchPort = context.getIntParameter("elasticsearchPort", DEFAULT_ELASTICSEARCH_PORT);
+        log.info(context.getParameter("elasticsearchIndex"));
         Class<?> clazz = Class.forName(elasticsearchMetricsSender);
         this.elasticsearchMetricsManager = (ElasticsearchMetricsSender) clazz.newInstance();
         elasticsearchMetricsManager.setup(elasticsearchHost, elasticsearchPort);
@@ -314,7 +221,7 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
 
     /**
      * Add Annotation at start or end of the run ( usefull with Grafana )
-     * Grafana will let you send HTML in the 窶弋ext窶� such as a link to the release notes
+     * Grafana will let you send HTML in the text such as a link to the release notes
      * Tags are separated by spaces in grafana
      * Tags is put as InfluxdbTag for better query performance on it
      * Never double or single quotes in influxdb except for string field
@@ -322,12 +229,6 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
      * * @param startOrEnd boolean true for start, false for end
      */
     private void addAnnotation(boolean startOrEnd) {
-    	elasticsearchMetricsManager.addMetric(EVENTS_FOR_ANNOTATION, 
-                TAG_APPLICATION + application + ",title=ApacheJMeter"+
-                (StringUtils.isNotEmpty(testTags) ? TAGS+ testTags : ""), 
-                TEXT +  
-                        AbstracElasticsearchMetricsSender.fieldToStringValue(testTitle +
-                                (startOrEnd ? " started" : " ended")) + "\"" );
     }
     
     @Override
@@ -336,7 +237,7 @@ public class ElasticsearchBackendListenerClient extends AbstractBackendListenerC
         arguments.addArgument("elasticsearchMetricsSender", HttpMetricsSender.class.getName());
         arguments.addArgument("elasticsearchHost", DEFAULT_ELASTICSEARCH_HOST);
         arguments.addArgument("elasticsearchPort", Integer.toString(DEFAULT_ELASTICSEARCH_PORT));
-        arguments.addArgument("elasticsearchIndex", "jmeter-${__time(YMDHMS)");
+        arguments.addArgument("elasticsearchIndex", "jmeter-${__time(YMDHMS)}");
         return arguments;
     }
 }
